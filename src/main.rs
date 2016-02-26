@@ -27,9 +27,11 @@ mod typedrw;
 mod hilbert_curve;
 mod graph_iterator;
 mod twitter_parser;
+mod crutils;
 
 static USAGE: &'static str = "
 Usage: COST pagerank  (vertex | hilbert | compressed) <prefix>
+       COST choicerank  (vertex | hilbert | compressed) <prefix>
        COST label_prop (vertex | hilbert | compressed) <prefix>
        COST union_find (vertex | hilbert | compressed) <prefix>
        COST stats  (vertex | hilbert | compressed) <prefix>
@@ -58,14 +60,23 @@ fn main() {
     }
 
     if args.get_bool("hilbert") {
-        let graph = UpperLowerMemMapper::new(args.get_str("<prefix>"));
+        let prefix = args.get_str("<prefix>");
+        let graph = UpperLowerMemMapper::new(prefix);
         // let graph = UpperLowerMapper {
         //     upper: || File::open(format!("{}.nodes", args.get_str("<prefix>"))).unwrap(),
         //     lower: || File::open(format!("{}.edges", args.get_str("<prefix>"))).unwrap(),
         // };
         if args.get_bool("stats") { stats(&graph); }
         if args.get_bool("print") { print(&graph); }
-        if args.get_bool("pagerank") { pagerank(&graph, stats(&graph), 0.85f32); }
+        if args.get_bool("pagerank") {
+            let pr = pagerank(&graph, stats(&graph), 0.85f32);
+            crutils::write_values(&pr, format!("{}.out", prefix));
+        }
+        if args.get_bool("choicerank") {
+            let flow = crutils::read_values(format!("{}.flow", prefix));
+            let cr = choicerank(&graph, &flow, stats(&graph));
+            crutils::write_values(&cr, format!("{}.out", prefix));
+        }
         if args.get_bool("label_prop") { label_propagation(&graph, stats(&graph)); }
         if args.get_bool("union_find") { union_find(&graph, stats(&graph)); }
     }
@@ -154,7 +165,7 @@ fn print<G: EdgeMapper>(graph: &G) {
     graph.map_edges(|x, y| { println!("{}\t{} -> {}", x, y, hilbert.entangle((x,y))) });
 }
 
-fn pagerank<G: EdgeMapper>(graph: &G, nodes: u32, alpha: f32)
+fn pagerank<G: EdgeMapper>(graph: &G, nodes: u32, alpha: f32) -> Vec<f32>
 {
     let mut src: Vec<f32> = (0..nodes).map(|_| 0f32).collect();
     let mut dst: Vec<f32> = (0..nodes).map(|_| 0f32).collect();
@@ -173,6 +184,38 @@ fn pagerank<G: EdgeMapper>(graph: &G, nodes: u32, alpha: f32)
 
         // UNSAFE: graph.map_edges(|x, y| { unsafe { *dst.as_mut_slice().get_unchecked_mut(y) += *src.as_mut_slice().get_unchecked_mut(x); }});
     }
+
+    dst  // Contains the final PageRank value.
+}
+
+fn choicerank<G: EdgeMapper>(graph: &G, flow: &Vec<f32>, nodes: u32) -> Vec<f32> {
+    let nodes = nodes as usize;
+    let mut strength = vec![1f32; nodes];
+    let mut ease = vec![1f32; nodes];
+    let mut strength_sum = vec![0f32; nodes];
+    let mut ease_sum = vec![0f32; nodes];
+
+    let shape_m1: f32 = 0.1;
+    let rate: f32 = 0.1;
+
+    for _iteration in (0 .. 20) {
+        println!("Iteration: {}", _iteration + 1);
+
+        // Update the ease.
+        graph.map_edges(|x, y| { strength_sum[x as usize] += strength[y as usize]; });
+        for v in 0 .. nodes {
+            ease[v] = flow[v] / strength_sum[v];
+            strength_sum[v] = 0.0;
+        }
+
+        // Update the strength.
+        graph.map_edges(|x, y| { ease_sum[y as usize] += ease[x as usize]; });
+        for v in 0 .. nodes {
+            strength[v] = (flow[v] + shape_m1) / (ease_sum[v] + rate);
+            ease_sum[v] = 0.0;
+        }
+    }
+    strength
 }
 
 fn union_find<G: EdgeMapper>(graph: &G, nodes: u32)
