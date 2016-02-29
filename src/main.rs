@@ -8,6 +8,7 @@ extern crate mmap;
 // extern crate core;
 // extern crate test;
 extern crate byteorder;
+extern crate time;
 
 extern crate docopt;
 use docopt::Docopt;
@@ -173,14 +174,16 @@ fn pagerank<G: EdgeMapper>(graph: &G, nodes: u32, alpha: f32) -> Vec<f32>
 
     graph.map_edges(|x, _| { deg[x as usize] += 1f32 });
 
+    let t_start = time::precise_time_s();
     for _iteration in (0 .. 20) {
-        println!("Iteration: {}", _iteration);
+        println!("Starting iteration {}...", _iteration + 1);
         for node in (0 .. nodes) {
             src[node as usize] = alpha * dst[node as usize] / deg[node as usize];
             dst[node as usize] = 1f32 - alpha;
         }
 
         graph.map_edges(|x, y| { dst[y as usize] += src[x as usize]; });
+        println!("... finished. Elapsed time: {:.*} s.", 3, time::precise_time_s() - t_start);
 
         // UNSAFE: graph.map_edges(|x, y| { unsafe { *dst.as_mut_slice().get_unchecked_mut(y) += *src.as_mut_slice().get_unchecked_mut(x); }});
     }
@@ -198,8 +201,9 @@ fn choicerank<G: EdgeMapper>(graph: &G, flow: &Vec<f32>, nodes: u32) -> Vec<f32>
     let shape_m1: f32 = 0.1;
     let rate: f32 = 0.1;
 
+    let t_start = time::precise_time_s();
     for _iteration in (0 .. 20) {
-        println!("Iteration: {}", _iteration + 1);
+        println!("Starting iteration {}...", _iteration + 1);
 
         // Update the ease.
         graph.map_edges(|x, y| { strength_sum[x as usize] += strength[y as usize]; });
@@ -207,6 +211,7 @@ fn choicerank<G: EdgeMapper>(graph: &G, flow: &Vec<f32>, nodes: u32) -> Vec<f32>
             ease[v] = flow[v] / strength_sum[v];
             strength_sum[v] = 0.0;
         }
+        println!("... finished ease - elapsed time: {:.*} s.", 3, time::precise_time_s() - t_start);
 
         // Update the strength.
         graph.map_edges(|x, y| { ease_sum[y as usize] += ease[x as usize]; });
@@ -214,6 +219,7 @@ fn choicerank<G: EdgeMapper>(graph: &G, flow: &Vec<f32>, nodes: u32) -> Vec<f32>
             strength[v] = (flow[v] + shape_m1) / (ease_sum[v] + rate);
             ease_sum[v] = 0.0;
         }
+        println!("... finished strength - elapsed time: {:.*} s.", 3, time::precise_time_s() - t_start);
     }
     strength
 }
