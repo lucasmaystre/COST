@@ -9,6 +9,7 @@ extern crate mmap;
 // extern crate test;
 extern crate byteorder;
 extern crate time;
+extern crate timely_sort;
 
 extern crate docopt;
 use docopt::Docopt;
@@ -83,10 +84,14 @@ fn main() {
     }
 
     if args.get_bool("compressed") {
+        let prefix = args.get_str("<prefix>");
         let graph = DeltaCompressedReaderMapper::new(|| BufReader::new(File::open(args.get_str("<prefix>")).unwrap()));
         if args.get_bool("stats") { stats(&graph); }
         if args.get_bool("print") { print(&graph); }
-        if args.get_bool("pagerank") { pagerank(&graph, stats(&graph), 0.85f32); }
+        if args.get_bool("pagerank") {
+            let pr = pagerank(&graph, stats(&graph), 0.85f32);
+            crutils::write_values(&pr, format!("{}.out", prefix));
+        }
         if args.get_bool("label_prop") { label_propagation(&graph, stats(&graph)); }
         if args.get_bool("union_find") { union_find(&graph, stats(&graph)); }
     }

@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use std::collections::HashMap;
 use graph_iterator::EdgeMapper;
 use byteorder::{ReadBytesExt, WriteBytesExt};
+use timely_sort::LSBRadixSorter;
 
 #[inline]
 pub fn encode<W: Write>(writer: &mut W, diff: u64) {
@@ -83,10 +84,18 @@ where I : EdgeMapper,
       O : FnMut(u64)->(),
 {
     let hilbert = BytewiseHilbert::new();
-    let mut buffer = Vec::new();
-    graph.map_edges(|node, edge| { buffer.push(hilbert.entangle((node, edge))); });
-    buffer.sort();
-    for &element in buffer.iter() { output(element); }
+    // let mut buffer = Vec::new();
+    // graph.map_edges(|node, edge| { buffer.push(hilbert.entangle((node, edge))); });
+    // buffer.sort(); // This is probably mergesort.
+    // for &element in buffer.iter() { output(element); }
+    let mut sorter = LSBRadixSorter::new();
+    graph.map_edges(|node, edge| { sorter.push(hilbert.entangle((node, edge)), &|&x| x); });
+    let buffer = sorter.finish(&|&x| x);
+    for vec in &buffer {
+        for element in vec {
+            output(*element);
+        }
+    }
 }
 
 pub fn convert_to_hilbert<I, O>(graph: &I, make_dense: bool, mut output: O) -> ()
