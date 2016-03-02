@@ -193,10 +193,8 @@ fn pagerank<G: EdgeMapper>(graph: &G, nodes: u32, alpha: f32) -> Vec<f32>
 
 fn choicerank<G: EdgeMapper>(graph: &G, flow: &Vec<f32>, nodes: u32) -> Vec<f32> {
     let nodes = nodes as usize;
-    let mut strength = vec![1f32; nodes];
-    let mut ease = vec![1f32; nodes];
-    let mut strength_sum = vec![0f32; nodes];
-    let mut ease_sum = vec![0f32; nodes];
+    let mut val = vec![1f32; nodes];
+    let mut sum = vec![0f32; nodes];
 
     let shape_m1: f32 = 0.1;
     let rate: f32 = 0.1;
@@ -205,23 +203,23 @@ fn choicerank<G: EdgeMapper>(graph: &G, flow: &Vec<f32>, nodes: u32) -> Vec<f32>
     for _iteration in (0 .. 20) {
         println!("Starting iteration {}...", _iteration + 1);
 
-        // Update the ease.
-        graph.map_edges(|x, y| { strength_sum[x as usize] += strength[y as usize]; });
+        graph.map_edges(|x, y| { sum[x as usize] += val[y as usize]; });
+        // Update the ease (`val = ease, sum = strength_sum`).
         for v in 0 .. nodes {
-            ease[v] = flow[v] / strength_sum[v];
-            strength_sum[v] = 0.0;
+            val[v] = flow[v] / sum[v];
+            sum[v] = 0.0;
         }
         println!("... finished ease - elapsed time: {:.*} s.", 3, time::precise_time_s() - t_start);
 
-        // Update the strength.
-        graph.map_edges(|x, y| { ease_sum[y as usize] += ease[x as usize]; });
+        graph.map_edges(|x, y| { sum[y as usize] += val[x as usize]; });
+        // Update the strength. (`val = strength, sum = ease_sum`).
         for v in 0 .. nodes {
-            strength[v] = (flow[v] + shape_m1) / (ease_sum[v] + rate);
-            ease_sum[v] = 0.0;
+            val[v] = (flow[v] + shape_m1) / (sum[v] + rate);
+            sum[v] = 0.0;
         }
         println!("... finished strength - elapsed time: {:.*} s.", 3, time::precise_time_s() - t_start);
     }
-    strength
+    val
 }
 
 fn union_find<G: EdgeMapper>(graph: &G, nodes: u32)
