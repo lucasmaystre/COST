@@ -92,6 +92,11 @@ fn main() {
             let pr = pagerank(&graph, stats(&graph), 0.85f32);
             crutils::write_values(&pr, format!("{}.out", prefix));
         }
+        if args.get_bool("choicerank") {
+            let flow = crutils::read_values(format!("{}.flow", prefix));
+            let cr = choicerank(&graph, &flow, stats(&graph));
+            crutils::write_values(&cr, format!("{}.out", prefix));
+        }
         if args.get_bool("label_prop") { label_propagation(&graph, stats(&graph)); }
         if args.get_bool("union_find") { union_find(&graph, stats(&graph)); }
     }
